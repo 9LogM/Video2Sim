@@ -2,6 +2,8 @@
 x-common-env: &common-env
   SCENE_NAME: ${SCENE_NAME}
   DATA_ROOT: ${DATA_ROOT}
+  CUDA_HOME: /usr/local/cuda
+  TORCH_CUDA_ARCH_LIST: ${TORCH_CUDA_ARCH_LIST}
 
 x-gpu-build: &gpu-build
   args:
