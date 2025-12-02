@@ -79,7 +79,6 @@ cp /app/holoscene/confs/replica/room_0/replica_room_0_post.conf "$POST_CONF"
 cp /app/holoscene/confs/replica/room_0/replica_room_0_tex.conf "$TEX_CONF"
 
 for CFG in "$BASE_CONF" "$POST_CONF" "$TEX_CONF"; do
-    # Data paths
     sed -i "s|data_root_dir = ./data_dir/replica/|data_root_dir = ${DATA_ROOT}/|g" "$CFG"
     sed -i "s|data_dir = room_0|data_dir = ${SCENE_NAME}|g" "$CFG"
     sed -i "s|expname = holoscene_replica_room_0|expname = holoscene_${SCENE_NAME}|g" "$CFG"

@@ -54,8 +54,8 @@ Fill out `.env` (scene name, Hugging Face token, etc.).
 4. **Retrieve results**  
 Results will be generated into `data/output`.
 
-**Note:** You can temporarily set `CMD ["tail", "-f", "/dev/null"]` in a
-module’s `Dockerfile` if you need to keep the container running for debugging.
+**Note:** To keep the container alive for debugging, temporarily set
+the command in `docker-compose.yml` to `["tail", "-f", "/dev/null"]`."
 
 
 ## Citations

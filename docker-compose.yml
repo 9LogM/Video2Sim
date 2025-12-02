@@ -2,7 +2,6 @@
 x-common-env: &common-env
   SCENE_NAME: ${SCENE_NAME}
   DATA_ROOT: ${DATA_ROOT}
-  TORCH_CUDA_ARCH_LIST: "${TORCH_CUDA_ARCH_LIST}"
 
 x-gpu-build: &gpu-build
   args:
@@ -15,7 +14,7 @@ x-gpu-deploy: &gpu-deploy
       reservations:
         devices:
           - driver: nvidia
-            count: 1
+            count: all
             capabilities: [gpu]
 
 # --- Services ---
@@ -58,6 +57,7 @@ services:
       <<: *common-env
       HF_TOKEN: ${HF_TOKEN}
       SAM3_MIN_SCORE: ${SAM3_MIN_SCORE}
+      SAM3_MIN_FRAME_PERCENT: ${SAM3_MIN_FRAME_PERCENT}
     volumes:
       - ./data:/data
       - ./data/cache/sam3:/root/.cache

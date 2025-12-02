@@ -13,9 +13,10 @@ from depth_anything_3.api import DepthAnything3
 
 def main():
     # --- 1. Setup Paths & Config ---
-    scene = os.environ.get("SCENE_NAME")
-    data_root = Path(os.environ.get("DATA_ROOT"))
-    model_dir = os.environ.get("DA3_MODEL_DIR", "checkpoints/da3")
+    scene = os.environ["SCENE_NAME"]
+    data_root = Path(os.environ["DATA_ROOT"])
+    model_dir = os.environ["DA3_MODEL_DIR"]
+    device = "cuda"
     
     img_dir = data_root / scene / "images"
     out_json = data_root / scene / "transforms.json"
@@ -34,7 +35,6 @@ def main():
     print(f"[DA3] Original Res: {orig_w}x{orig_h}")
 
     # --- 3. Load Model & Run Inference ---
-    device = "cuda"
     print(f"[DA3] Loading model from {model_dir}...")
     
     model = DepthAnything3.from_pretrained(model_dir).to(device).eval()
