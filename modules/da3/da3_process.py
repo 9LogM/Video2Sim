@@ -38,7 +38,7 @@ def main():
     print(f"[DA3] Loading model from {model_dir}...")
     
     model = DepthAnything3.from_pretrained(model_dir).to(device).eval()
-
+    
     frame_paths_str = [str(f) for f in frame_files]
     
     with torch.no_grad():
@@ -48,7 +48,7 @@ def main():
             export_format="npz"
         )
 
-    # --- 3. Vectorized Intrinsics Processing ---
+    # --- 4. Vectorized Intrinsics Processing ---
     proc_h, proc_w = preds.processed_images.shape[1:3]
     scale_x, scale_y = orig_w / proc_w, orig_h / proc_h
 
@@ -61,26 +61,47 @@ def main():
 
     params = np.stack([fx, fy, cx, cy], axis=1)
     valid_mask = np.isfinite(params).all(axis=1) & (params[:, 0] > 1e-3)
+    
+    if not valid_mask.any():
+        raise RuntimeError("No valid intrinsics found (all NaN or zero).")
+        
     valid_params = params[valid_mask]
-
     final_fx, final_fy, final_cx, final_cy = np.median(valid_params, axis=0)
     angle_x = 2.0 * np.arctan((orig_w / 2.0) / final_fx)
 
-    # --- 4. Vectorized Extrinsics Processing ---
+    # --- 5. Vectorized Extrinsics Processing ---
     num_frames = len(preds.extrinsics)
     
     w2c = np.eye(4, dtype=np.float32).reshape(1, 4, 4).repeat(num_frames, axis=0)
-    w2c[:, :3, :] = preds.extrinsics
+    
+    if preds.extrinsics.shape[-2:] == (3, 4):
+        w2c[:, :3, :] = preds.extrinsics
+    elif preds.extrinsics.shape[-2:] == (4, 4):
+        w2c[:] = preds.extrinsics
+    else:
+        raise ValueError(f"Unexpected extrinsics shape: {preds.extrinsics.shape}")
 
-    c2w_all = np.linalg.inv(w2c)
+    c2w_opencv = np.linalg.inv(w2c)
 
-    # --- 5. Generate JSON ---
+    flip_mat = np.diag([1, -1, -1, 1]).astype(np.float32)
+    c2w_opengl = c2w_opencv @ flip_mat
+
+    # --- 6. Sanity Check for Movement ---
+    first_pos = c2w_opengl[0, :3, 3]
+    last_pos = c2w_opengl[-1, :3, 3]
+    drift = np.linalg.norm(first_pos - last_pos)
+    print(f"[DA3] Trajectory Drift: {drift:.4f}")
+    
+    if drift < 0.001:
+        print("[WARNING] Camera trajectory is extremely static. Reconstruction may fail.")
+
+    # --- 7. Generate JSON ---
     frames_json = [
         {
             "file_path": f"images/{f.name}",
             "transform_matrix": c2w.tolist()
         }
-        for f, c2w in zip(frame_files, c2w_all)
+        for f, c2w in zip(frame_files, c2w_opengl)
     ]
 
     out_data = {
