@@ -6,8 +6,8 @@ import json
 import torch
 import numpy as np
 
-from pathlib import Path
 from PIL import Image
+from pathlib import Path
 from depth_anything_3.api import DepthAnything3
 
 
@@ -16,6 +16,7 @@ def main():
     scene = os.environ["SCENE_NAME"]
     data_root = Path(os.environ["DATA_ROOT"])
     model_dir = os.environ["DA3_MODEL_DIR"]
+    sample_rate = int(os.environ["DA3_SAMPLE_RATE"])
     device = "cuda"
     
     img_dir = data_root / scene / "images"
@@ -23,9 +24,13 @@ def main():
     cache_dir = data_root / scene
     
     frame_files = sorted(
-        [f for f in img_dir.iterdir() if f.suffix.lower() in {'.jpg', '.jpeg', '.png'}],
+        [f for f in img_dir.iterdir() if f.name[0] != '.'],
         key=lambda x: int(re.search(r"\d+", x.name).group() or 0)
     )
+
+    if sample_rate > 1:
+        print(f"[DA3] Applying sample rate of {sample_rate}...")
+        frame_files = frame_files[::sample_rate]
 
     print(f"[DA3] Scene='{scene}', Frames={len(frame_files)}")
 
@@ -34,15 +39,16 @@ def main():
     print(f"[DA3] Original Res: {orig_w}x{orig_h}")
 
     # --- 2. Load Model & Run Inference ---    
-    model = DepthAnything3.from_pretrained(model_dir).to(device).eval()
+    model = DepthAnything3.from_pretrained(model_dir).to(device)
     
     frame_paths_str = [str(f) for f in frame_files]
     
-    with torch.no_grad():
+    with torch.inference_mode(), torch.autocast(device_type=device, dtype=torch.bfloat16):
         preds = model.inference(
             image=frame_paths_str,
-            export_dir=str(cache_dir),
-            export_format="glb"
+            export_dir=str(cache_dir / "da3_out"),
+            export_format="glb",
+            use_ray_pose=True
         )
 
     # --- 3. Vectorized Intrinsics Processing ---
@@ -83,16 +89,7 @@ def main():
     flip_mat = np.diag([1, -1, -1, 1]).astype(np.float32)
     c2w_opengl = c2w_opencv @ flip_mat
 
-    # --- 5. Sanity Check for Movement ---
-    first_pos = c2w_opengl[0, :3, 3]
-    last_pos = c2w_opengl[-1, :3, 3]
-    drift = np.linalg.norm(first_pos - last_pos)
-    print(f"[DA3] Trajectory Drift: {drift:.4f}")
-    
-    if drift < 0.001:
-        print("[WARNING] Camera trajectory is extremely static. Reconstruction may fail.")
-
-    # --- 6. Generate JSON ---
+    # --- 5. Generate JSON ---
     frames_json = [
         {
             "file_path": f"images/{f.name}",

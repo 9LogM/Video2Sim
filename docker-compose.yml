@@ -43,6 +43,7 @@ services:
     environment:
       <<: *common-env
       DA3_MODEL_DIR: ${DA3_MODEL_DIR}
+      DA3_SAMPLE_RATE: ${DA3_SAMPLE_RATE}
     volumes:
       - ./data:/data
       - ./data/cache/da3:/root/.cache
