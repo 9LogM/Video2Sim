@@ -34,7 +34,7 @@ def get_frame_paths(img_dir):
 
 
 def get_image_dims(file_path):
-    """Quickly peeks at the first image to get dimensions."""
+    """Peeks at the first image to get dimensions."""
     with Image.open(file_path) as img:
         return img.size
 
@@ -42,19 +42,14 @@ def get_image_dims(file_path):
 def get_processed_hw(preds):
     """Extracts processed height and width from model predictions."""
     s = preds.processed_images.shape
-
     if len(s) == 4 and s[1] == 3:
         return s[2], s[3]
-
     if len(s) == 4 and s[-1] == 3:
         return s[1], s[2]
 
 
 def compute_intrinsics(preds, orig_w, orig_h):
-    """
-    Scales model intrinsics back to original resolution and 
-    calculates median camera parameters.
-    """
+    """Scales intrinsics back to original resolution."""
     proc_h, proc_w = get_processed_hw(preds)
     scale_x, scale_y = orig_w / proc_w, orig_h / proc_h
 
@@ -68,7 +63,7 @@ def compute_intrinsics(preds, orig_w, orig_h):
     valid_mask = np.isfinite(params).all(axis=1) & (params[:, 0] > 1e-3)
     
     if not valid_mask.any():
-        raise RuntimeError("No valid intrinsics found (all NaN or zero).")
+        raise RuntimeError("No valid intrinsics found.")
 
     final_fx, final_fy, final_cx, final_cy = np.median(params[valid_mask], axis=0)
     angle_x = 2.0 * np.arctan((orig_w / 2.0) / final_fx)
@@ -89,11 +84,27 @@ def compute_extrinsics(preds):
     else:
         raise ValueError(f"Unexpected extrinsics shape: {ext.shape}")
 
-    c2w_cv = np.linalg.inv(w2c)
+    c2w = np.linalg.inv(w2c)
+    return c2w
 
-    flip = np.diag([1, -1, -1, 1]).astype(np.float32)
 
-    c2w = c2w_cv @ flip
+def normalize_cameras(c2w):
+    """
+    Centers the scene and aligns the dataset principal axes to World X, Y, Z.
+    """
+    c2w[:, :3, 3] -= c2w[:, :3, 3].mean(axis=0)
+
+    _, _, vh = np.linalg.svd(c2w[:, :3, 3])
+    R_new = vh
+
+    avg_cam_y = c2w[:, :3, 1].mean(axis=0) 
+    if np.dot(R_new[2, :], avg_cam_y) > 0: 
+        R_new[2, :] *= -1
+        R_new[1, :] *= -1
+
+    c2w[:, :3, :3] = R_new @ c2w[:, :3, :3]
+    c2w[:, :3, 3] = (R_new @ c2w[:, :3, 3].T).T
+    
     return c2w
 
 
@@ -118,6 +129,8 @@ def main():
 
     fx, fy, cx, cy, angle_x = compute_intrinsics(preds, orig_w, orig_h)
     c2w_matrices = compute_extrinsics(preds)
+
+    c2w_matrices = normalize_cameras(c2w_matrices)
 
     print(f"\n[Stats] Camera Parameters:")
     print(f"  Focal Length (X/Y): {fx:.2f} / {fy:.2f}")
