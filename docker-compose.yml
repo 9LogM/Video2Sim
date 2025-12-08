@@ -81,7 +81,9 @@ services:
       WANDB_MODE: disabled
     volumes:
       - ./data:/data
-      - ./data/cache/holoscene:/root/.cache
+      - ./data/cache/holoscene/ckpts:/app/holoscene/ckpts
+      - ./data/cache/holoscene/lama:/app/holoscene/lama
+      - ./data/cache/holoscene/omnidata:/app/holoscene/omnidata
       - ./docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
       - ./data/output:/app/holoscene/exps
     entrypoint: ["/usr/local/bin/docker-entrypoint.sh"]

@@ -52,28 +52,33 @@ def process_poses(preds):
     """
     1. Invert (W2C -> C2W): Convert World-to-Camera matrices to Camera-to-World poses.
     2. CV -> GL: Convert camera coordinate system (OpenCV: Down/Right) to OpenGL (Up/Back).
-    3. World Reorient: Rotate the Global World frame (swap Y-up to Z-up).
-    4. Center: Subtract the mean translation to center the trajectory at (0,0,0).
+    3. Center: Subtract the mean translation to center the trajectory at (0,0,0).
+    4. World Reorient: Rotate the Global World frame.
     5. Align: Use SVD/PCA to align the trajectory's principal axes to the world axes.
     """
     ext = preds.extrinsics.astype(np.float32)
     n = ext.shape[0]
-    w2c = np.tile(np.eye(4, dtype=np.float32), (n, 1, 1))
-    w2c[:, :3, :] = ext
-    c2w = np.linalg.inv(w2c)
 
-    flip_mat = np.diag([1, -1, -1, 1]).astype(np.float32)
-    c2w = c2w @ flip_mat
+    R = ext[:, :3, :3]
+    t = ext[:, :3, 3] 
+    R_inv = np.transpose(R, (0, 2, 1))
+    t_inv = -(R_inv @ t[..., None])[..., 0]
+    c2w = np.eye(4, dtype=np.float32)[None].repeat(n, axis=0)
+    c2w[:, :3, :3] = R_inv
+    c2w[:, :3, 3] = t_inv
+
+    flip_cv_to_gl = np.diag([1, -1, -1, 1]).astype(np.float32)
+    c2w = c2w @ flip_cv_to_gl
+
+    c2w[:, :3, 3] -= c2w[:, :3, 3].mean(axis=0)
 
     floor_fix_matrix = np.array([
+        [0, -1,  0,  0],
         [1,  0,  0,  0],
-        [0,  0, -1,  0],
-        [0,  1,  0,  0],
+        [0,  0,  1,  0],
         [0,  0,  0,  1]
     ], dtype=np.float32)
     c2w = floor_fix_matrix @ c2w
-
-    c2w[:, :3, 3] -= c2w[:, :3, 3].mean(axis=0)
 
     _, _, vh = np.linalg.svd(c2w[:, :3, 3])
     R_align = vh

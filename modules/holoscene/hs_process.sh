@@ -5,7 +5,7 @@ set -e
 
 # --- Configuration ---
 SCENE_NAME="${SCENE_NAME}"
-CACHE_ROOT="/root/.cache"
+CACHE_ROOT="/app/holoscene"
 DATA_ROOT="${DATA_ROOT}"
 DATA_DIR="${DATA_ROOT}/${SCENE_NAME}"
 
