@@ -51,10 +51,10 @@ def compute_intrinsics(preds, orig_w, orig_h):
 def process_poses(preds):
     """
     1. Invert (W2C -> C2W): Convert World-to-Camera matrices to Camera-to-World poses.
-    2. CV -> GL: Convert camera coordinate system (OpenCV: Down/Right) to OpenGL (Up/Back).
+    2. CV -> GL: Convert camera coordinate system (OpenCV: Right-Down-Forward) to OpenGL (Right-Up-Back).
     3. Center: Subtract the mean translation to center the trajectory at (0,0,0).
-    4. Align: Use SVD/PCA to align the trajectory's principal axes to the world axes.
-    5. Reorient world: apply 90° rotation around the X axis.
+    4. Align: Use SVD to align the trajectory's principal axes to the world axes.
+    5. Reorient world: Apply a hardcoded axis permutation.
     """
     ext = preds.extrinsics.astype(np.float32)
     n = ext.shape[0]
@@ -76,15 +76,14 @@ def process_poses(preds):
     R_align = vh
     if np.linalg.det(R_align) < 0:
         R_align[2, :] *= -1
-    
     c2w[:, :3, :3] = R_align @ c2w[:, :3, :3]
     c2w[:, :3, 3] = (R_align @ c2w[:, :3, 3].T).T
 
     floor_fix_matrix = np.array([
-        [1,  0,  0,  0],
-        [0,  0,  1,  0],
-        [0, -1,  0,  0],
-        [0,  0,  0,  1],
+        [0., -1.,  0., 0.],
+        [-1., 0.,  0., 0.],
+        [0.,  0., -1., 0.],
+        [0.,  0.,  0., 1.],
     ], dtype=np.float32)
     c2w = floor_fix_matrix @ c2w
 
